@@ -88,7 +88,7 @@ Write-Output "Done in $([int]$Duration.TotalMinutes) minute(s) and $([int]$Durat
 $CredUser = "<GmailUserID>";
 $CredPassword = "<GmailAppPassword>"; #Generate app password for gmail https://support.google.com/accounts/answer/185833?hl=en
 $EmailFrom = "<GmailUserID>"
-$EmailTo = "<EmailTo>"
+$EmailTo = "<EmailTo-01>,<EmailTo-02>" #You can add multiple email id separated by comma
 $Subject = $ResourceGroupName + $VirtualMachineName
 $Body = $Body + " Duration : $([int]$Duration.TotalMinutes) minute(s) and $([int]$Duration.Seconds) second(s)"
 $SMTPServer = "smtp.gmail.com" 
