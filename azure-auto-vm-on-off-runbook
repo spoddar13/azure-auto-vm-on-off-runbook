@@ -15,7 +15,7 @@ param (
     [String] $ResourceGroupName = '<ResourceGroupName>',
 
     [Parameter(Mandatory=$false)] 
-    [String] $VMName = 'Virtual-Machine-Name>'
+    [String] $VMName = '<Virtual-Machine-Name>'
 )
 
 # Keep track of time
