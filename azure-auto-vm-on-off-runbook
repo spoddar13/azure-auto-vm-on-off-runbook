@@ -1,0 +1,98 @@
+param (
+    [Parameter(Mandatory=$false)] 
+    [String]  $TenantId = '<TenantId>',
+  
+    [Parameter(Mandatory=$false)] 
+    [String]  $SubscriptionId = '<SubscriptionId>',
+
+	  [Parameter(Mandatory=$false,Position=0)]
+	  [string] $VirtualMachineAction = '<Action>', #Action : Start/Stop 
+
+    [Parameter(Mandatory=$false)] 
+    [String]  $AzureCredentialName = '<Automation-CredentialName>',
+
+    [Parameter(Mandatory=$false)] 
+    [String] $ResourceGroupName = '<ResourceGroupName>',
+
+    [Parameter(Mandatory=$false)] 
+    [String] $VMName = 'Virtual-Machine-Name>'
+)
+
+# Keep track of time
+$StartDate=(GET-DATE)
+
+try {
+  $Cred = Get-AutomationPSCredential -Name $AzureCredentialName
+  $userName = $Cred.UserName
+  $securePassword = $Cred.Password
+  Write-Output "using user $userName"
+  $PsCred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $userName, $securePassword
+  Write-Output $myPsCred
+  Write-Output "try to connect..."
+    Connect-AzAccount -TenantId $TenantId -Subscription $SubscriptionId -Credential $PsCred
+    Write-Output "connection succeeded"
+    Write-Output "set subscrioption..."
+    Set-AzContext -SubscriptionId $SubscriptionId -TenantId $TenantId
+
+	$myVirtualMachine = Get-AzVM -ResourceGroupName $ResourceGroupName -Name $VMName
+		if (!$myVirtualMachine)
+		{
+			Write-Error "$($VMName) not found in $($ResourceGroupName)"
+			return
+		}
+		else
+		{
+			# Get status of VM when user provides data for existing VM
+			$myVirtualMachineState = ((Get-AzVM -ResourceGroupName $ResourceGroupName -Name $VMName -Status).Statuses | Where {$_.code -like 'PowerState/*'}).Code
+			Write-Output "Current status of $($VMName): $($myVirtualMachineState)"
+		}
+	}
+	catch {
+	Write-Error $_.Exception
+		throw $_.Exception
+	}
+
+	########################################################
+# Start or Stop VM
+########################################################
+# Check for incompatible actions
+if (($VirtualMachineAction -eq "Start" -And $myVirtualMachineState -eq "PowerState/running") -Or ($VirtualMachineAction -eq "Stop" -And $myVirtualMachineState -eq "PowerState/deallocated"))
+{
+    #Write-Error "Cannot $($VirtualMachineAction) $($VirtualMachineName) while the status is $($myVirtualMachineState)"
+	Write-Output "Cannot $($VirtualMachineAction) $($VMName) while the status is $($myVirtualMachineState)"
+	$Body = "Cannot $($VirtualMachineAction) `n ResourceGroup : $($ResourceGroupName) `n VirtualMachine : $($VMName) `n Status : $($myVirtualMachineState) `n"
+	#return
+}
+# Resume Azure Analysis Services
+elseif ($VirtualMachineAction -eq "Start")
+{
+    Write-Output "Now starting $($VMName)"
+    Start-AzVM -ResourceGroupName $ResourceGroupName -Name $VMName -Confirm:$false
+	$Body = "Runbook Action : AutoVM $($VirtualMachineAction) `n ResourceGroup : $($ResourceGroupName) `n VirtualMachine : $($VMName) Started Successfully `n"
+}
+# Pause Azure Analysis Services
+else
+{
+    Write-Output "Now stopping $($VMName)"
+    $null = Stop-AzVM -ResourceGroupName $ResourceGroupName -Name $VMName -Confirm:$false -Force
+	$Body = "Runbook Action -- AutoVM $($VirtualMachineAction) `n ResourceGroup : $($ResourceGroupName) `n VirtualMachine : $($VMName) `n Runbook Result : $($VMName) Stopped Successfully `n"
+}
+
+########################################################
+# Show when finished
+########################################################
+$Duration = NEW-TIMESPAN –Start $StartDate –End (GET-DATE)
+Write-Output "Done in $([int]$Duration.TotalMinutes) minute(s) and $([int]$Duration.Seconds) second(s)"
+
+##Email
+$CredUser = "<GmailUserID>";
+$CredPassword = "<GmailAppPassword>"; #Generate app password for gmail https://support.google.com/accounts/answer/185833?hl=en
+$EmailFrom = "<GmailUserID>"
+$EmailTo = "<EmailTo>"
+$Subject = $ResourceGroupName + $VirtualMachineName
+$Body = $Body + " Duration : $([int]$Duration.TotalMinutes) minute(s) and $([int]$Duration.Seconds) second(s)"
+$SMTPServer = "smtp.gmail.com" 
+$SMTPClient = New-Object Net.Mail.SmtpClient($SmtpServer, 587) 
+$SMTPClient.EnableSsl = $true 
+$SMTPClient.Credentials = New-Object System.Net.NetworkCredential($CredUser, $CredPassword); 
+$SMTPClient.Send($EmailFrom, $EmailTo, $Subject, $Body)
